@@ -1,103 +1,189 @@
-import Image from "next/image";
-
+"use client";
+import { signIn, signOut, useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
+import EmailList from "./emails/components/EmailList";
+import EmailReader from "./emails/components/EmailReader";
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { data: session } = useSession();
+  const [emails, setEmails] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [maxResults, setMaxResults] = useState(15);
+  const [classified, setClassified] = useState(false);
+  const [selectedEmail, setSelectedEmail] = useState(null);
+  const [openAiKey, setOpenAiKey] = useState("");
+  const [keySaved, setKeySaved] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    const savedKey = localStorage.getItem("openai_api_key");
+    if (savedKey) {
+      setOpenAiKey(savedKey);
+      setKeySaved(true);
+    }
+  }, []);
+
+  const handleSaveKey = () => {
+    if (!openAiKey.trim()) {
+      alert("Please enter a valid OpenAI API key!");
+      return;
+    }
+    localStorage.setItem("openai_api_key", openAiKey.trim());
+    setKeySaved(true);
+    alert("✅ OpenAI API key saved successfully!");
+  };
+
+  const handleClearKey = () => {
+    localStorage.removeItem("openai_api_key");
+    setOpenAiKey("");
+    setKeySaved(false);
+    alert("🗑️ OpenAI key removed!");
+  };
+
+  async function fetchEmails() {
+    setLoading(true);
+    setClassified(false);
+    try {
+      const res = await fetch(`/api/emails?maxResults=${maxResults}`);
+      const data = await res.json();
+      setEmails(data.emails || []);
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred while fetching emails:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  
+
+  const classifyEmails = async () => {
+
+    if (!openAiKey) {
+      alert("Please enter and save your OpenAI API key first!");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+        Authorization: `Bearer ${openAiKey}`,
+        },
+        body: JSON.stringify({ emails }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+
+        const updated = emails.map((email, idx) => ({
+          ...email,
+          category: data[idx]?.category || "Others",
+        }));
+        setEmails(updated);
+        setClassified(true);
+      }
+    } catch (err) {
+      console.error("Error classifying emails:", err);
+    }
+    setLoading(false);
+  };
+
+  const handleSelectEmail = (email) => {
+    setSelectedEmail(email);
+  }
+
+  return (
+    <div className="p-6 font-handwriting">
+      <div
+        className={`${session
+          ? "flex justify-between items-center mb-6"
+          : "flex justify-center items-center h-screen"
+          }`}
+      >
+        {session ? (
+          <div>
+            <p className="font-semibold">{session.user.name}</p>
+            <p className="text-sm text-gray-500">{session.user.email}</p>
+          </div>
+        ) : (
+          <div />
+        )}
+        <button
+          onClick={() => (session ? signOut() : signIn("google"))}
+          className="px-6 py-3 bg-blue-500 text-white rounded-lg text-lg font-semibold shadow-md hover:bg-blue-600 transition"
+        >
+          {session ? "Logout" : "Login using Google"}
+        </button>
+      </div>
+        
+        {session && (
+        <div className="bg-gray-100 p-4 rounded-lg mb-6">
+          <h2 className="text-lg font-semibold mb-3">OpenAI API Key</h2>
+
+          {keySaved ? (
+            <div className="flex items-center justify-between">
+              <p className="text-green-600">Key saved in localStorage ✅</p>
+              <button
+                onClick={handleClearKey}
+                className="px-3 py-1 bg-red-500 text-white rounded-lg"
+              >
+                Clear Key
+              </button>
+            </div>
+          ) : (
+            <div className="flex space-x-3">
+              <input
+                type="password"
+                placeholder="Enter your OpenAI API key..."
+                value={openAiKey}
+                onChange={(e) => setOpenAiKey(e.target.value)}
+                className="flex-1 px-3 py-2 border rounded-lg"
+              />
+              <button
+                onClick={handleSaveKey}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+              >
+                Save Key
+              </button>
+            </div>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {session && (
+        <div className="flex items-center gap-3 mb-6">
+          <select
+            className="border p-2 rounded"
+            value={maxResults}
+            onChange={(e) => setMaxResults(Number(e.target.value))}
+          >
+            {[5, 10, 15, 20, 30].map((num) => (
+              <option key={num} value={num}>
+                {num} Emails
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={fetchEmails}
+            disabled={loading}
+            className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800"
+          >
+            {loading ? "Fetching..." : "Fetch Emails"}
+          </button>
+
+          {emails.length > 0 && (
+            <button
+              onClick={classifyEmails}
+              disabled={loading}
+              className="border border-black px-4 py-2 rounded hover:bg-gray-100"
+            >
+              {loading ? "Classifying..." : classified ? "Reclassify" : "Classify"}
+            </button>
+          )}
+        </div>
+      )}
+      {emails.length > 0 && <EmailList emails={emails} onSelectEmail={handleSelectEmail} />}
+      <EmailReader email={selectedEmail} onClose={() => setSelectedEmail(null)} />
+
     </div>
   );
 }
