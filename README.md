@@ -1,4 +1,4 @@
-Gmail Classifier
+## Gmail Classifier
 
 An AI-powered email classification web app built with Next.js.
 It connects with Google OAuth and the Gmail API to securely fetch your emails and then uses OpenAI to automatically categorize them into meaningful groups like Work, Promotions, Spam, and more.
