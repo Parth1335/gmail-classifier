@@ -52,9 +52,13 @@ npm install
 Create a file named .env.local in the project root and add the following:
 
 GOOGLE_CLIENT_ID=your_google_client_id
+
 GOOGLE_CLIENT_SECRET=your_google_client_secret
+
 NEXT_PUBLIC_GOOGLE_REDIRECT_URI=http://localhost:3000
+
 NEXTAUTH_URL=http://localhost:3000
+
 NEXTAUTH_SECRET=your_secret
 
 # OpenAI API Key
